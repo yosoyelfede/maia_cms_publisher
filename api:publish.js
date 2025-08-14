@@ -59,7 +59,8 @@ async function upsertFile(owner, repo, branch, path, content, token, isBase64) {
   );
 }
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
+  // CORS
   const origin = req.headers.origin || '';
   if (req.method === 'OPTIONS') {
     if (ORIGINS.includes(origin)) {
@@ -75,13 +76,17 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'Method not allowed' }, origin);
   }
+
+  // Simple auth header
   const clientKey = req.headers['x-publish-key'];
   if (!clientKey || clientKey !== process.env.PUBLISH_KEY) {
     return json(res, 401, { error: 'Unauthorized' }, origin);
   }
 
   try {
-    const { posts, images = [], branch = 'main' } = req.body || {};
+    // Body can be object (JSON) or string; normalize
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const { posts, images = [], branch = 'main' } = body;
     if (!Array.isArray(posts)) {
       return json(res, 400, { error: 'Invalid posts' }, origin);
     }
@@ -90,6 +95,7 @@ export default async function handler(req, res) {
     const owner = process.env.REPO_OWNER;
     const repo = process.env.REPO_NAME;
 
+    // Upsert JSON
     await upsertFile(
       owner, repo, branch,
       'public/data/blog-posts.json',
@@ -97,9 +103,10 @@ export default async function handler(req, res) {
       token, false
     );
 
+    // Upsert images
     for (const img of images) {
       if (!img?.path || !img?.contentBase64) continue;
-      const clean = img.contentBase64.split(',').pop(); // strip "data:...;base64,"
+      const clean = img.contentBase64.split(',').pop(); // strip data:...;base64, if present
       await upsertFile(owner, repo, branch, img.path, clean, token, true);
     }
 
@@ -107,4 +114,4 @@ export default async function handler(req, res) {
   } catch (e) {
     return json(res, 500, { error: e.message }, origin);
   }
-}
+};
