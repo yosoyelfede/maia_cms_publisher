@@ -1,4 +1,3 @@
-// api/publish.js
 const ORIGINS = (process.env.PUBLISH_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
